@@ -1,0 +1,542 @@
+// Use your database TO CREATE COLLECTION
+use Estate;
+
+/* ======================
+   Lookups
+====================== */
+
+// property_types
+db.createCollection("property_types", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["name"],
+      properties: {
+        name: { bsonType: "string", description: "e.g., HOUSE, APARTMENT" }
+      }
+    }
+  }
+});
+db.property_types.createIndex({ name: 1 }, { unique: true });
+
+// property_statuses
+db.createCollection("property_statuses", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["name"],
+      properties: { name: { bsonType: "string" } }
+    }
+  }
+});
+db.property_statuses.createIndex({ name: 1 }, { unique: true });
+
+// rent_periods
+db.createCollection("rent_periods", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["name"],
+      properties: { name: { bsonType: "string" } }
+    }
+  }
+});
+db.rent_periods.createIndex({ name: 1 }, { unique: true });
+
+// currencies
+db.createCollection("currencies", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["code", "name"],
+      properties: {
+        code:   { bsonType: "string", pattern: "^[A-Z]{3}$" }, // ISO 4217
+        name:   { bsonType: "string" },
+        symbol: { bsonType: "string" }
+      }
+    }
+  }
+});
+db.currencies.createIndex({ code: 1 }, { unique: true });
+
+/* ======================
+   Core references
+====================== */
+
+// addresses
+db.createCollection("addresses", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["line1", "city", "country_code"],
+      properties: {
+        line1:        { bsonType: "string" },
+        line2:        { bsonType: "string" },
+        city:         { bsonType: "string" },
+        region:       { bsonType: "string" },
+        postal_code:  { bsonType: "string" },
+        country_code: { bsonType: "string", pattern: "^[A-Z]{2}$" }, // ISO-3166-1
+        latitude:     { bsonType: ["double", "decimal", "null"] },
+        longitude:    { bsonType: ["double", "decimal", "null"] }
+      }
+    }
+  }
+});
+db.addresses.createIndex({ country_code: 1, city: 1 });
+
+// contacts
+db.createCollection("contacts", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["name"],
+      properties: {
+        name:         { bsonType: "string" },
+        email:        { bsonType: "string" },
+        phone:        { bsonType: "string" },
+        organization: { bsonType: "string" }
+      }
+    }
+  }
+});
+
+// neighborhoods
+db.createCollection("neighborhoods", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["name"],
+      properties: {
+        name:         { bsonType: "string" },
+        city:         { bsonType: "string" },
+        region:       { bsonType: "string" },
+        country_code: { bsonType: "string", pattern: "^[A-Z]{2}$" }
+      }
+    }
+  }
+});
+db.neighborhoods.createIndex({ name: 1, city: 1, country_code: 1 }, { unique: false });
+
+/* ======================
+   Properties (central)
+====================== */
+
+db.createCollection("properties", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      properties: {
+        title:              { bsonType: "string" },
+        description:        { bsonType: "string" },
+
+        type_id:            { bsonType: "objectId" }, // -> property_types
+        status_id:          { bsonType: "objectId" }, // -> property_statuses
+
+        address_id:         { bsonType: "objectId" }, // -> addresses
+        neighborhood_id:    { bsonType: "objectId" }, // -> neighborhoods
+
+        owner_id:           { bsonType: "objectId" }, // -> contacts
+        manager_id:         { bsonType: "objectId" }, // -> contacts
+        agent_id:           { bsonType: "objectId" }, // -> contacts
+
+        parent_property_id: { bsonType: "objectId" }, // -> properties
+
+        currency_id:        { bsonType: "objectId" }, // -> currencies
+        for_sale:           { bsonType: "bool" },
+        sale_price:         { bsonType: ["decimal", "double", "null"] },
+
+        for_rent:           { bsonType: "bool" },
+        rent_price:         { bsonType: ["decimal", "double", "null"] },
+        rent_period_id:     { bsonType: "objectId" }, // -> rent_periods
+
+        bedrooms:           { bsonType: ["int", "null"] },
+        bathrooms:          { bsonType: ["decimal", "double", "int", "null"] }, // supports 1.5
+        parking_spaces:     { bsonType: ["int", "null"] },
+        max_occupancy:      { bsonType: ["int", "null"] },
+        building_size:      { bsonType: ["decimal", "double", "null"] },
+        lot_size:           { bsonType: ["decimal", "double", "null"] },
+        floor_number:       { bsonType: ["int", "null"] },
+        year_built:         { bsonType: ["int", "null"] }
+      }
+    }
+  }
+});
+
+
+// in case the id of reference are null - we can accept null field
+
+db.runCommand({
+  collMod: "properties",
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      properties: {
+        title: { bsonType: "string" },
+        description: { bsonType: "string" },
+
+        type_id:            { bsonType: "objectId" },
+        status_id:          { bsonType: "objectId" },
+
+        address_id:         { bsonType: "objectId" },
+        neighborhood_id:    { bsonType: ["objectId","null"] },
+
+        owner_id:           { bsonType: "objectId" },
+        manager_id:         { bsonType: ["objectId","null"] },
+        agent_id:           { bsonType: ["objectId","null"] },
+
+        parent_property_id: { bsonType: ["objectId","null"] },
+
+        currency_id:        { bsonType: "objectId" },
+        for_sale:           { bsonType: "bool" },
+        sale_price:         { bsonType: ["decimal","double","null"] },
+
+        for_rent:           { bsonType: "bool" },
+        rent_price:         { bsonType: ["decimal","double","null"] },
+        rent_period_id:     { bsonType: ["objectId","null"] },
+
+        bedrooms:           { bsonType: ["int","null"] },
+        bathrooms:          { bsonType: ["decimal","double","int","null"] },
+        parking_spaces:     { bsonType: ["int","null"] },
+        max_occupancy:      { bsonType: ["int","null"] },
+        building_size:      { bsonType: ["decimal","double","null"] },
+        lot_size:           { bsonType: ["decimal","double","null"] },
+        floor_number:       { bsonType: ["int","null"] },
+        year_built:         { bsonType: ["int","null"] }
+      }
+    }
+  },
+  validationLevel: "moderate" // optional; "strict" is default
+});
+
+// ====================================
+
+
+
+
+
+
+
+// helpful query indexes (optional)
+db.properties.createIndex({ type_id: 1 });
+db.properties.createIndex({ status_id: 1 });
+db.properties.createIndex({ address_id: 1 });
+db.properties.createIndex({ neighborhood_id: 1 });
+db.properties.createIndex({ owner_id: 1 });
+db.properties.createIndex({ manager_id: 1 });
+db.properties.createIndex({ agent_id: 1 });
+db.properties.createIndex({ parent_property_id: 1 });
+db.properties.createIndex({ for_sale: 1, sale_price: 1 });
+db.properties.createIndex({ for_rent: 1, rent_price: 1 });
+
+/* ======================
+   Amenities (many-to-many)
+====================== */
+
+// amenities
+db.createCollection("amenities", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["code", "label"],
+      properties: {
+        code:  { bsonType: "string" }, // e.g., POOL
+        label: { bsonType: "string" }
+      }
+    }
+  }
+});
+db.amenities.createIndex({ code: 1 }, { unique: true });
+
+// property_amenities (bridge)
+db.createCollection("property_amenities", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["property_id", "amenity_id"],
+      properties: {
+        property_id: { bsonType: "objectId" }, // -> properties
+        amenity_id:  { bsonType: "objectId" }  // -> amenities
+      }
+    }
+  }
+});
+db.property_amenities.createIndex({ property_id: 1, amenity_id: 1 }, { unique: true });
+db.property_amenities.createIndex({ amenity_id: 1 });
+
+/* ======================
+   Utilities (many-to-many)
+====================== */
+
+// utilities
+db.createCollection("utilities", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["code", "label"],
+      properties: {
+        code:  { bsonType: "string" }, // e.g., ELECTRICITY
+        label: { bsonType: "string" }
+      }
+    }
+  }
+});
+db.utilities.createIndex({ code: 1 }, { unique: true });
+
+// property_utilities (bridge)
+db.createCollection("property_utilities", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["property_id", "utility_id"],
+      properties: {
+        property_id:      { bsonType: "objectId" }, // -> properties
+        utility_id:       { bsonType: "objectId" }, // -> utilities
+        included_in_rent: { bsonType: ["bool", "null"] },
+        provider:         { bsonType: ["string", "null"] }
+      }
+    }
+  }
+});
+db.property_utilities.createIndex({ property_id: 1, utility_id: 1 }, { unique: true });
+db.property_utilities.createIndex({ utility_id: 1 });
+
+/* ======================
+   Photos (one-to-many)
+====================== */
+
+db.createCollection("property_photos", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["property_id", "url"],
+      properties: {
+        property_id: { bsonType: "objectId" }, // -> properties
+        url:         { bsonType: "string" },
+        caption:     { bsonType: ["string", "null"] },
+        sort_order:  { bsonType: ["int", "null"] }
+      }
+    }
+  }
+});
+db.property_photos.createIndex({ property_id: 1, sort_order: 1 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ===== Use DB to INSERT =====
+
+
+use('Estate'); // or your chosen name
+
+// ===== Helpers =====
+// get-or-create and return _id (prevents duplicate key errors on re-run)
+function idFor(coll, query, insertDoc = null) {
+  const existing = db[coll].findOne(query, { _id: 1 });
+  if (existing) return existing._id;
+  return db[coll].insertOne(insertDoc ?? query).insertedId;
+}
+
+// ===== Lookups =====
+const ptHouse      = idFor('property_types',    { name: 'HOUSE' });
+const ptApartment  = idFor('property_types',    { name: 'APARTMENT' });
+const ptMansion    = idFor('property_types',    { name: 'MANSION' });
+
+const psActive     = idFor('property_statuses', { name: 'ACTIVE' });
+const psRented     = idFor('property_statuses', { name: 'RENTED' });
+const psSold       = idFor('property_statuses', { name: 'SOLD' });
+
+const rpMonthly    = idFor('rent_periods',      { name: 'MONTHLY' });
+const rpYearly     = idFor('rent_periods',      { name: 'YEARLY' });
+
+const curUSD       = idFor('currencies',        { code: 'USD' }, { code: 'USD', name: 'United States Dollar', symbol: '$' });
+const curEUR       = idFor('currencies',        { code: 'EUR' }, { code: 'EUR', name: 'Euro',                 symbol: '€' });
+
+// ===== Core references =====
+// Addresses
+const addrNYC = idFor('addresses', {
+  line1: '123 Park Ave',
+  line2: 'Apt 12B',
+  city: 'New York',
+  region: 'NY',
+  postal_code: '10022',
+  country_code: 'US',
+  latitude: 40.7617,
+  longitude: -73.9726
+});
+const addrSF = idFor('addresses', {
+  line1: '77 Oak Street',
+  city: 'San Francisco',
+  region: 'CA',
+  postal_code: '94102',
+  country_code: 'US',
+  latitude: 37.7764,
+  longitude: -122.4201
+});
+
+// Contacts
+const ownerAlice = idFor('contacts', { name: 'Alice Owner' }, { name: 'Alice Owner', email: 'owner@example.com', phone: '+1-555-0001', organization: 'Alice Holdings LLC' });
+const agentBob   = idFor('contacts', { name: 'Bob Agent'   }, { name: 'Bob Agent',   email: 'agent@example.com', phone: '+1-555-0002', organization: 'Prime Realty' });
+const mgrCarol   = idFor('contacts', { name: 'Carol Manager' }, { name: 'Carol Manager', email: 'carol@example.com', phone: '+1-555-0003', organization: 'ACME Property Mgmt' });
+
+// Neighborhoods
+const nbMidtown  = idFor('neighborhoods', { name: 'Midtown East', city: 'New York', region: 'NY', country_code: 'US' });
+const nbSOMA     = idFor('neighborhoods', { name: 'SoMa',         city: 'San Francisco', region: 'CA', country_code: 'US' });
+
+// ===== Amenities & Utilities Lookups =====
+const amElevator = idFor('amenities', { code: 'ELEVATOR' }, { code: 'ELEVATOR', label: 'Elevator' });
+const amBalcony  = idFor('amenities', { code: 'BALCONY'  }, { code: 'BALCONY',  label: 'Balcony' });
+const amGarden   = idFor('amenities', { code: 'GARDEN'   }, { code: 'GARDEN',   label: 'Garden' });
+const amPool     = idFor('amenities', { code: 'POOL'     }, { code: 'POOL',     label: 'Swimming Pool' });
+const amAC       = idFor('amenities', { code: 'AIRCON'   }, { code: 'AIRCON',   label: 'Air Conditioning' });
+
+const utPower    = idFor('utilities', { code: 'ELECTRICITY' }, { code: 'ELECTRICITY', label: 'Electricity' });
+const utGas      = idFor('utilities', { code: 'GAS'         }, { code: 'GAS',         label: 'Gas' });
+const utWater    = idFor('utilities', { code: 'WATER'       }, { code: 'WATER',       label: 'Water' });
+const utInternet = idFor('utilities', { code: 'INTERNET'    }, { code: 'INTERNET',    label: 'Internet' });
+
+// ===== Properties (central) =====
+// 1) Apartment FOR RENT (NYC)
+const propAptNYC = idFor('properties',
+  { title: 'Sunny 2BR near park', address_id: addrNYC }, // idempotent key
+  {
+    title: 'Sunny 2BR near park',
+    description: 'Renovated unit with balcony and city view.',
+    type_id: ptApartment,
+    status_id: psActive,
+    address_id: addrNYC,
+    neighborhood_id: nbMidtown,
+    owner_id: ownerAlice,
+    manager_id: mgrCarol,
+    agent_id: agentBob,
+    parent_property_id: null,
+    currency_id: curUSD,
+    for_sale: false,
+    sale_price: null,
+    for_rent: true,
+    rent_price: NumberDecimal('3200.00'),
+    rent_period_id: rpMonthly,
+    bedrooms: 2,
+    bathrooms: NumberDecimal('1.5'),
+    parking_spaces: 0,
+    max_occupancy: 4,
+    building_size: NumberDecimal('85.00'),
+    lot_size: null,
+    floor_number: 12,
+    year_built: 1980
+  }
+);
+
+// 2) House FOR SALE (SF)
+const propHouseSF = idFor('properties',
+  { title: 'Detached House with Garden', address_id: addrSF }, // idempotent key
+  {
+    title: 'Detached House with Garden',
+    description: 'Quiet street, renovated kitchen, large yard.',
+    type_id: ptHouse,
+    status_id: psActive,
+    address_id: addrSF,
+    neighborhood_id: nbSOMA,
+    owner_id: ownerAlice,
+    manager_id: null,
+    agent_id: agentBob,
+    parent_property_id: null,
+    currency_id: curUSD,
+    for_sale: true,
+    sale_price: NumberDecimal('550000.00'),
+    for_rent: false,
+    rent_price: null,
+    rent_period_id: null,
+    bedrooms: 3,
+    bathrooms: NumberDecimal('2.0'),
+    parking_spaces: 2,
+    max_occupancy: 6,
+    building_size: NumberDecimal('160.00'),
+    lot_size: NumberDecimal('500.00'),
+    floor_number: null,
+    year_built: 1995
+  }
+);
+
+// ===== Bridges: property_amenities =====
+function linkAmenity(propertyId, amenityId) {
+  db.property_amenities.updateOne(
+    { property_id: propertyId, amenity_id: amenityId },
+    { $setOnInsert: { property_id: propertyId, amenity_id: amenityId } },
+    { upsert: true }
+  );
+}
+// NYC apartment: Elevator, Balcony, AC
+linkAmenity(propAptNYC, amElevator);
+linkAmenity(propAptNYC, amBalcony);
+linkAmenity(propAptNYC, amAC);
+
+// SF house: Garden, Pool
+linkAmenity(propHouseSF, amGarden);
+linkAmenity(propHouseSF, amPool);
+
+// ===== Bridges: property_utilities =====
+function linkUtility(propertyId, utilityId, includedInRent = false, provider = null) {
+  db.property_utilities.updateOne(
+    { property_id: propertyId, utility_id: utilityId },
+    { $set: { included_in_rent: includedInRent, provider: provider } },
+    { upsert: true }
+  );
+}
+// NYC apartment utilities
+linkUtility(propAptNYC, utPower,    false, 'ConEd');
+linkUtility(propAptNYC, utWater,    true,  null);
+linkUtility(propAptNYC, utInternet, false, 'FiberNet');
+// SF house utilities
+linkUtility(propHouseSF, utPower,    false, 'PG&E');
+linkUtility(propHouseSF, utGas,      false, 'PG&E');
+linkUtility(propHouseSF, utWater,    false, 'SF Water');
+
+// ===== Photos =====
+function addPhoto(propertyId, url, caption, sort) {
+  db.property_photos.updateOne(
+    { property_id: propertyId, url },
+    { $setOnInsert: { property_id: propertyId, url, caption, sort_order: sort ?? 0 } },
+    { upsert: true }
+  );
+}
+// NYC apt photos
+addPhoto(propAptNYC, 'https://cdn.example.com/properties/apt-nyc/main.jpg', 'Living room', 0);
+addPhoto(propAptNYC, 'https://cdn.example.com/properties/apt-nyc/kitchen.jpg', 'Kitchen', 1);
+// SF house photos
+addPhoto(propHouseSF, 'https://cdn.example.com/properties/house-sf/front.jpg', 'Front view', 0);
+addPhoto(propHouseSF, 'https://cdn.example.com/properties/house-sf/garden.jpg', 'Backyard garden', 1);
+
+// ===== Output: quick sanity checks =====
+print('\n--- Lookups ---');
+printjson(db.property_types.find().toArray());
+printjson(db.property_statuses.find().toArray());
+printjson(db.rent_periods.find().toArray());
+printjson(db.currencies.find().toArray());
+
+print('\n--- Properties ---');
+printjson(db.properties.find({}, { title: 1, for_rent: 1, rent_price: 1, for_sale: 1, sale_price: 1 }).toArray());
+
+print('\n--- Amenities & Utilities (links) ---');
+printjson(db.property_amenities.find().toArray());
+printjson(db.property_utilities.find().toArray());
+
+print('\n--- Photos ---');
+printjson(db.property_photos.find().toArray());
